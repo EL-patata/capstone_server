@@ -9,25 +9,39 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String
-  emailVerified Boolean
-  image         String?   @default("default.png")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime
-  sessions      Session[]
-  accounts      Account[]
-  Message       Message[]
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  emailVerified  Boolean
+  image          String?          @default("default.png")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  role           String           @default("USER")
+  accounts       Account[]
+  Chat           Chat[]
+  Disease        Disease[]
+  sessions       Session[]
+  WearableSensor WearableSensor[]
+  UserInfo       UserInfo[]
 
-  @@unique([email, name])
   @@map("users")
+}
+
+model UserInfo {
+  id          String   @id
+  user        User     @relation(fields: [id], references: [id])
+  height      Float
+  dateOfBirth DateTime
+  phoneNumber String
+  district    String   @default("area 1")
+
+  @@map("user_info")
 }
 
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime
   updatedAt DateTime
   ipAddress String?
@@ -35,7 +49,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@map("session")
 }
 
@@ -44,7 +57,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -54,6 +66,7 @@ model Account {
   password              String?
   createdAt             DateTime
   updatedAt             DateTime
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -69,22 +82,70 @@ model Verification {
   @@map("verification")
 }
 
-model Message {
-  id      String @id @default(cuid())
-  content String
-  user    User   @relation(fields: [userId], references: [id])
+model Disease {
+  id      String @id
   userId  String
+  disease String
+  user    User   @relation(fields: [userId], references: [id])
 
-  created_at DateTime? @default(now())
-
-  @@map("messages")
+  @@map("disease")
 }
 
-model Media {
-  id  String @id @default(cuid())
-  url String
+model GasSensor {
+  id               String     @id
+  area             String
+  created_at       DateTime   @default(now())
+  last_maintenance DateTime?
+  gas_data         gas_data[]
 
-  created_at DateTime? @default(now())
+  @@map("gas_sensor")
+}
 
-  @@map("media")
+model gas_data {
+  id            Int        @id @default(autoincrement())
+  co2           Float?
+  nh3           Float?
+  alcohol       Float?
+  toluene       Float?
+  acetone       Float?
+  lpg           Float?
+  co            Float?
+  smoke         Float?
+  timestamp     DateTime?  @default(now()) @db.Timestamp(6)
+  gas_sensor_id String?    @default("")
+  Chat          Chat[]
+  gas_sensor    GasSensor? @relation(fields: [gas_sensor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model health_data {
+  id              Int            @id @default(autoincrement())
+  heart_rate      Int?
+  spo2            Int?
+  timestamp       DateTime?      @default(now()) @db.Timestamp(6)
+  sensorId        String         @default("")
+  wearable_sensor WearableSensor @relation(fields: [sensorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model WearableSensor {
+  id               String        @id
+  userId           String
+  created_at       DateTime      @default(now())
+  last_maintenance DateTime?
+  health_data      health_data[]
+  user             User          @relation(fields: [userId], references: [id])
+
+  @@map("wearable_sensor")
+}
+
+model Chat {
+  id            String   @id
+  test          String
+  isUserMessage Boolean
+  created_at    DateTime @default(now())
+  userId        String
+  readingId     Int
+  gasReading    gas_data @relation(fields: [readingId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("chat")
 }
