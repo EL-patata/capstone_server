@@ -12,6 +12,11 @@ accounts_router.get('/all-accounts', async (_, res) => {
 			Disease: true,
 			UserInfo: true,
 		},
+		where: {
+			role: {
+				not: 'ADMIN',
+			},
+		},
 	});
 
 	res.status(200).json({

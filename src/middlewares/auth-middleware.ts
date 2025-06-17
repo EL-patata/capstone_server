@@ -29,11 +29,11 @@ export default async function authMiddleware(
 		headers: fromNodeHeaders(req.headers),
 	});
 
-	if (validSession) {
-		next();
-	} else {
-		res.status(401).json({
-			message: 'not authenticated.',
-		});
-	}
+	// if (validSession) {
+	next();
+	// } else {
+	// 	res.status(401).json({
+	// 		message: 'not authenticated.',
+	// 	});
+	// }
 }

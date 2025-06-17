@@ -15,7 +15,7 @@ export const auth = betterAuth({
 	plugins: [expo()],
 
 	trustedOrigins: [
-		'myapp://',
+		'capstone://',
 		'http://localhost:3000',
 		'http://localhost:8081',
 	],

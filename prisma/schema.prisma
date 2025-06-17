@@ -21,19 +21,19 @@ model User {
   Chat           Chat[]
   Disease        Disease[]
   sessions       Session[]
+  UserInfo       UserInfo?
   WearableSensor WearableSensor[]
-  UserInfo       UserInfo[]
 
   @@map("users")
 }
 
 model UserInfo {
   id          String   @id
-  user        User     @relation(fields: [id], references: [id])
   height      Float
   dateOfBirth DateTime
   phoneNumber String
   district    String   @default("area 1")
+  user        User     @relation(fields: [id], references: [id])
 
   @@map("user_info")
 }
@@ -92,60 +92,56 @@ model Disease {
 }
 
 model GasSensor {
-  id               String     @id
+  id               String    @id
   area             String
-  created_at       DateTime   @default(now())
+  created_at       DateTime  @default(now())
   last_maintenance DateTime?
-  gas_data         gas_data[]
 
   @@map("gas_sensor")
 }
 
 model gas_data {
-  id            Int        @id @default(autoincrement())
-  co2           Float?
-  nh3           Float?
-  alcohol       Float?
-  toluene       Float?
-  acetone       Float?
-  lpg           Float?
-  co            Float?
-  smoke         Float?
-  timestamp     DateTime?  @default(now()) @db.Timestamp(6)
-  gas_sensor_id String?    @default("")
-  Chat          Chat[]
-  gas_sensor    GasSensor? @relation(fields: [gas_sensor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id        Int       @id @default(autoincrement())
+  co2       Float?
+  nh3       Float?
+  alcohol   Float?
+  toluene   Float?
+  acetone   Float?
+  lpg       Float?
+  co        Float?
+  smoke     Float?
+  timestamp DateTime? @default(dbgenerated("(now() AT TIME ZONE 'Africa/Cairo'::text)")) @db.Timestamp(6)
+  Chat      Chat[]
 }
 
 model health_data {
-  id              Int            @id @default(autoincrement())
-  heart_rate      Int?
-  spo2            Int?
-  timestamp       DateTime?      @default(now()) @db.Timestamp(6)
-  sensorId        String         @default("")
-  wearable_sensor WearableSensor @relation(fields: [sensorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id         Int       @id @default(autoincrement())
+  heart_rate Int?
+  spo2       Int?
+  timestamp  DateTime? @default(dbgenerated("(now() AT TIME ZONE 'Africa/Cairo'::text)")) @db.Timestamp(6)
+  sensorid   String    @default("UNKNOWN")
 }
 
 model WearableSensor {
-  id               String        @id
+  id               String    @id
   userId           String
-  created_at       DateTime      @default(now())
+  created_at       DateTime  @default(now())
   last_maintenance DateTime?
-  health_data      health_data[]
-  user             User          @relation(fields: [userId], references: [id])
+  user             User      @relation(fields: [userId], references: [id])
 
   @@map("wearable_sensor")
 }
 
 model Chat {
-  id            String   @id
-  test          String
+  id            String    @id @default(cuid())
+  text          String
   isUserMessage Boolean
-  created_at    DateTime @default(now())
+  created_at    DateTime  @default(now())
   userId        String
   readingId     Int
-  gasReading    gas_data @relation(fields: [readingId], references: [id])
-  user          User     @relation(fields: [userId], references: [id])
+  gas_dataId    Int?
+  gas_data      gas_data? @relation(fields: [gas_dataId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
   @@map("chat")
 }

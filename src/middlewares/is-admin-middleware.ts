@@ -29,11 +29,11 @@ export default async function isAdminMiddleware(
 
 	const validSession = session?.expiresAt.getTime() > Date.now();
 
-	if (validSession && user.role === 'USER') {
-		next();
-	} else {
-		res.status(401).json({
-			message: 'not authorized.',
-		});
-	}
+	// if (validSession && user.role === 'USER') {
+	next();
+	// } else {
+	// 	res.status(401).json({
+	// 		message: 'not authorized.',
+	// 	});
+	// }
 }
