@@ -20,6 +20,7 @@ model User {
   accounts       Account[]
   Chat           Chat[]
   Disease        Disease[]
+  sensors        sensors?
   sessions       Session[]
   UserInfo       UserInfo?
   WearableSensor WearableSensor[]
@@ -144,4 +145,23 @@ model Chat {
   user          User      @relation(fields: [userId], references: [id])
 
   @@map("chat")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model new_health_data {
+  id         Int      @id @default(autoincrement())
+  timestamp  DateTime @default(now()) @db.Timestamptz(6)
+  heart_rate Int?
+  spo2       Int?
+  sensor_id  String?
+  sensors    sensors? @relation(fields: [sensor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sensors {
+  id              String            @id
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  user_id         String?           @unique
+  new_health_data new_health_data[]
+  users           User?             @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

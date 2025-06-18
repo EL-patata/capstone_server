@@ -49,11 +49,24 @@ app.use(express.json());
 //			express routes
 //----------------------------------
 
+/*
+	returns
+	messages: {
+    id: string;
+    text: string;
+    isUserMessage: boolean;
+    created_at: Date;
+    userId: string;
+    readingId: number;
+    gas_dataId: number;
+}[]
+*/
 app.get('/my-chat', async (req, res) => {
-	const userId = req.body.userId;
+	const { id } = parse(req.url, true).query;
+
 	const messages = await db.chat.findMany({
 		where: {
-			userId,
+			userId: id as string,
 		},
 		orderBy: {
 			created_at: 'asc',
@@ -64,8 +77,11 @@ app.get('/my-chat', async (req, res) => {
 		messages,
 	});
 });
-
-app.post('/api/profile-picture', async (req, res) => {
+/*
+	returns nothing.
+	updates the user's profile picture
+*/
+app.post('/api/profile-picture', async (req, _) => {
 	const imageUrl = req.body.imageUrl as string;
 	const userId = req.body.userId as string;
 
@@ -75,11 +91,27 @@ app.post('/api/profile-picture', async (req, res) => {
 		},
 		data: {
 			image: imageUrl,
+			updatedAt: new Date(),
 		},
 	});
 });
 
-app.get('/latest-reading', async (req, res) => {
+/*
+returns
+reading: {
+    id: number;
+    timestamp: Date;
+    co2: number;
+    nh3: number;
+    alcohol: number;
+    toluene: number;
+    acetone: number;
+    lpg: number;
+    co: number;
+    smoke: number;
+}
+*/
+app.get('/latest-reading', async (_, res) => {
 	const reading = await db.gas_data.findFirst({
 		orderBy: {
 			timestamp: 'desc',
@@ -99,17 +131,18 @@ app.get('/latest-wearable-reading', async (req, res) => {
 			message: 'no user id provided.',
 		});
 
-	const wearable = await db.wearableSensor.findFirst({
+	const wearable = await db.sensors.findFirst({
 		where: {
-			userId: id as string,
+			user_id: id as string,
 		},
 	});
 
-	// if (!wearable) res.status(404).json({ message: 'no wearable found.' });
+	if (!wearable)
+		res.status(200).json({ message: 'no wearable found.', reading: {} });
 
-	const reading = await db.health_data.findFirst({
+	const reading = await db.new_health_data.findFirst({
 		where: {
-			sensorid: wearable.id,
+			sensor_id: wearable.id,
 		},
 		orderBy: {
 			timestamp: 'desc',
@@ -118,9 +151,30 @@ app.get('/latest-wearable-reading', async (req, res) => {
 
 	res.status(200).json({
 		reading,
+		message: 'wearable found.',
 	});
 });
 
+/*
+	everything related to a user
+	returns
+	user: {
+    Disease: {
+        id: string;
+        userId: string;
+        disease: string;
+    }[];
+    UserInfo: {
+        id: string;
+        dateOfBirth: Date;
+        district: string;
+        height: number;
+        phoneNumber: string;
+    };
+} & {
+	......
+}
+*/
 app.get('/account', async (req, res) => {
 	const { id } = parse(req.url, true).query;
 
@@ -149,6 +203,11 @@ app.get('/account', async (req, res) => {
 	});
 });
 
+/*
+	the chat bot 
+	returns
+	message: string*/
+
 app.post('/chat', async (req, res) => {
 	const userMessage = req.body.message as string;
 	const userId = req.body.userId as string;
@@ -173,6 +232,16 @@ app.post('/chat', async (req, res) => {
 		},
 	});
 
+	const conditions = await db.disease.findMany({
+		where: {
+			userId,
+		},
+	});
+
+	const mappedConditions = conditions
+		.map((condition) => condition.disease)
+		.join(', ');
+
 	try {
 		const model = genAI.getGenerativeModel({
 			model: 'gemini-2.0-flash',
@@ -185,9 +254,11 @@ app.post('/chat', async (req, res) => {
 		});
 
 		const contextPrompt = `
-You are an air quality assistant for a factory or industrial area. Respond only to questions related to air quality, air pollution, gas safety, ventilation, or environmental health.
+You are an air quality assistant designed to help users in industrial or factory environments. Your expertise includes air pollution, gas detection, ventilation safety, and environmental health.
 
-If the user asks something unrelated (like weather, sports, history), politely redirect them to air quality topics.
+You have full access to the user's medical conditions, which are **explicitly shared and non-private** for the purpose of personalized advice. You should use this data to **inform your health-related air quality responses**, and you are allowed to reference them when relevant.
+
+Do not refuse to use or mention the medical conditions. Do not say they are private or restricted — they are not.
 
 Current sensor readings:
 - CO₂: ${latestReading?.co2 ?? 'unknown'} ppm
@@ -196,9 +267,12 @@ Current sensor readings:
 - ALCOHOL: ${latestReading?.alcohol ?? 'unknown'} ppm
 - CO: ${latestReading?.co ?? 'unknown'} ppm
 
+The user's known medical conditions are: ${mappedConditions}
+
+If the user asks a question unrelated to air quality (like weather, sports, or history), politely guide them back to relevant topics.
+
 User says: "${userMessage}"
 `;
-
 		const result = await model.generateContentStream(contextPrompt);
 
 		let fullText = '';

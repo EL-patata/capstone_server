@@ -40,6 +40,16 @@ register_router.post('/fill-user-information', async (req, res) => {
 		},
 	});
 
+	if (district === 'medical staff')
+		await db.user.update({
+			where: {
+				id,
+			},
+			data: {
+				role: 'MEDICAL_STAFF',
+			},
+		});
+
 	if (diseases.length !== 0 || !diseases)
 		await db.disease.createMany({
 			data: formattedDiseases,
