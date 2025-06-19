@@ -155,6 +155,119 @@ app.get('/latest-wearable-reading', async (req, res) => {
 	});
 });
 
+app.get('/non-connected-wearables', async (req, res) => {
+	const nonConnectedUsers = await db.user.findMany({
+		where: {
+			role: {
+				not: 'ADMIN',
+			},
+			sensors: {
+				is: null,
+			},
+		},
+	});
+
+	const nonConnectedDevices = await db.sensors.findMany({
+		where: {
+			user_id: {
+				equals: null,
+			},
+		},
+	});
+
+	const connectedUsers = await db.user.findMany({
+		where: {
+			role: {
+				not: 'ADMIN',
+			},
+			sensors: {
+				user_id: { not: null },
+			},
+		},
+	});
+
+	res
+		.status(200)
+		.json({ connectedUsers, nonConnectedUsers, nonConnectedDevices });
+});
+
+app.post('/connect-wearable', async (req, res) => {
+	const userId = req.body.userId as string;
+	if (!userId) res.status(401).json({ message: 'no user id provided.' });
+
+	const sensor = await db.sensors.findFirst({
+		where: {
+			user_id: null,
+		},
+	});
+	if (!sensor) res.status(404).json({ message: 'all sensors are connected.' });
+
+	await db.sensors.update({
+		where: {
+			id: sensor.id,
+		},
+		data: {
+			user_id: userId,
+		},
+	});
+
+	res.status(200).json({ message: 'connected successfully.' });
+});
+
+app.post('/admin-sign', async (req, res) => {
+	const { email, password } = req.body;
+
+	const isAdmin = await db.user.findUnique({
+		where: {
+			email,
+		},
+	});
+
+	console.log(isAdmin);
+
+	if (isAdmin.role !== 'ADMIN')
+		res.status(403).json({
+			message: 'useless message.',
+		});
+	else {
+		res.status(200).json({
+			message: 'useless message.',
+		});
+	}
+});
+
+app.post('/emergency', async (req, res) => {
+	const { userId } = req.body;
+
+	await db.alert.create({
+		data: {
+			user_id: userId as string,
+			id: `${Date.now().toString()}__${userId}`,
+		},
+	});
+
+	res.status(200).json({ message: 'alert sent.' });
+});
+
+app.get('/alerts', async (req, res) => {
+	const alerts = await db.alert.findMany({
+		select: {
+			created_at: true,
+			user: {
+				select: {
+					email: true,
+					name: true,
+					image: true,
+				},
+			},
+		},
+	});
+
+	res.status(200).json({
+		alerts,
+	});
+});
+
 /*
 	everything related to a user
 	returns
@@ -238,6 +351,17 @@ app.post('/chat', async (req, res) => {
 		},
 	});
 
+	const readings = await db.new_health_data.findFirst({
+		where: {
+			sensors: {
+				user_id: userId,
+			},
+		},
+		orderBy: {
+			timestamp: 'desc',
+		},
+	});
+
 	const mappedConditions = conditions
 		.map((condition) => condition.disease)
 		.join(', ');
@@ -253,7 +377,33 @@ app.post('/chat', async (req, res) => {
 			},
 		});
 
-		const contextPrompt = `
+		let contextPrompt = `
+You are an air quality assistant designed to help users in industrial or factory environments. Your expertise includes air pollution, gas detection, ventilation safety, and environmental health.
+
+You have full access to the user's medical conditions, which are **explicitly shared and non-private** for the purpose of personalized advice. You should use this data to **inform your health-related air quality responses**, and you are allowed to reference them when relevant.
+
+Do not refuse to use or mention the medical conditions. Do not say they are private or restricted — they are not.
+
+Current sensor readings:
+- CO₂: ${latestReading?.co2 ?? 'unknown'} ppm
+- NH₃: ${latestReading?.nh3 ?? 'unknown'} ppm
+- SMOKE: ${latestReading?.smoke ?? 'unknown'} ppm
+- ALCOHOL: ${latestReading?.alcohol ?? 'unknown'} ppm
+- CO: ${latestReading?.co ?? 'unknown'} ppm
+
+The user's known medical conditions are: ${mappedConditions}
+
+here is the user's spo2 reading ${readings.spo2}
+
+here is the user's heart rate reading ${readings.heart_rate}
+
+If the user asks a question unrelated to air quality (like weather, sports, or history), politely guide them back to relevant topics.
+
+User says: "${userMessage}"
+`;
+
+		if (!readings)
+			contextPrompt = `
 You are an air quality assistant designed to help users in industrial or factory environments. Your expertise includes air pollution, gas detection, ventilation safety, and environmental health.
 
 You have full access to the user's medical conditions, which are **explicitly shared and non-private** for the purpose of personalized advice. You should use this data to **inform your health-related air quality responses**, and you are allowed to reference them when relevant.
@@ -273,6 +423,7 @@ If the user asks a question unrelated to air quality (like weather, sports, or h
 
 User says: "${userMessage}"
 `;
+
 		const result = await model.generateContentStream(contextPrompt);
 
 		let fullText = '';

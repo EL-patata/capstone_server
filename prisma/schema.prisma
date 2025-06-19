@@ -24,6 +24,7 @@ model User {
   sessions       Session[]
   UserInfo       UserInfo?
   WearableSensor WearableSensor[]
+  Alert          Alert[]
 
   @@map("users")
 }
@@ -32,7 +33,7 @@ model UserInfo {
   id          String   @id
   height      Float
   dateOfBirth DateTime
-  phoneNumber String
+  phoneNumber String   @unique
   district    String   @default("area 1")
   user        User     @relation(fields: [id], references: [id])
 
@@ -164,4 +165,13 @@ model sensors {
   user_id         String?           @unique
   new_health_data new_health_data[]
   users           User?             @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Alert {
+  id         String   @id
+  created_at DateTime @default(now())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@map("alert")
 }
